@@ -292,7 +292,7 @@ void lv01_mainboss_tick(ent *e)
 		case 5:
 			// end regen for 1.0 health
 			e->base.ctr[0] = 120;
-			VPAL0[0] = 15<<10;
+			blend_bg_pal(32, 32, 256);
 			break;
 
 		case 6:
@@ -355,7 +355,7 @@ void lv01_mainboss_tick(ent *e)
 		case 8:
 			// death after attack 1.0
 			// health change
-			VPAL0[0] = 15;
+			blend_bg_pal(256, 32, 32);
 			e->enemy.tx = 120;
 			e->enemy.ty = 40;
 			e->base.ctr[0] = 50;
@@ -399,7 +399,7 @@ void lv01_mainboss_tick(ent *e)
 			f3m_sfx_play(&player, CHN_ESHOT, F3M_PRIO_NORMAL, s_bdead, s_bdead_len, 0, 32768, 127);
 			f3m_sfx_play(&player, CHN_EHITX, F3M_PRIO_NORMAL, s_bdead, s_bdead_len, 0, 32768, 127);
 			ent_kill(e);
-			VPAL0[0] = 0x421*15;
+			blend_bg_pal(256, 256, 256);
 			break;
 
 		case 201:
@@ -462,13 +462,18 @@ ent *lv01_new_mainboss(void)
 
 void lv01_controller_tick(ent *e)
 {
-	int i;
+	int i, j;
 	int incr;
 	mod_s *mod;
 
 	// ctr[0]: countdown for next event
 	// ctr[1]: current event
 	// ctr[2]: repetition count for current event
+
+	e->base.x += e->base.vx;
+	e->base.y += e->base.vy;
+	BG1HOFS = ((-e->base.x)>>12) & 0x0FF;
+	BG1VOFS = ((-e->base.y)>>12) & 0x0FF;
 
 	if(--e->base.ctr[0] > 0)
 		return;
@@ -479,11 +484,23 @@ void lv01_controller_tick(ent *e)
 			// Prep for warming background up
 			e->base.ctr[2] = 0;
 
+			// Also spam BG1 with crap
+			i = 0xBEEF;
+			for(j = 0; j < 32*32; j++)
+			{
+				VRAM0D[0x7800 + j] = (i % 6) + 0x40;
+				if(i&1)
+					i ^= 0x9000<<1;
+				i >>= 1;
+			}
+
 			// *** FALL THROUGH ***
 		case 1:
 			// Warm background up
 			e->base.ctr[2]++;
-			VPAL0[0] = ((e->base.ctr[2]*((31+3/2)/3))>>6)*0x421;
+			i = ((e->base.ctr[2]*((32+3/2)/3))>>2);
+			blend_bg_pal(i, i, i);
+
 			//e->base.ctr[1] = 200; // SKIP
 			if(e->base.ctr[2] < 64)
 				e->base.ctr[1] = 1;
@@ -491,6 +508,7 @@ void lv01_controller_tick(ent *e)
 
 		case 2:
 			// Window before title appearance
+			blend_bg_pal(256, 256, 256);
 			e->base.ctr[0] = 30;
 			break;
 
@@ -581,6 +599,7 @@ void lv01_controller_tick(ent *e)
 			}
 
 			e->base.ctr[2]++;
+			e->base.vy >>= 1;
 			if(e->base.ctr[2] < 8+1)
 			{
 				e->base.ctr[1]--;
@@ -593,6 +612,8 @@ void lv01_controller_tick(ent *e)
 
 		case 13:
 			e->base.ctr[0] = 96*4;
+			e->base.vx = 0x800;
+			e->base.vy = 0x1000;
 			break;
 
 		case 14:
@@ -602,7 +623,7 @@ void lv01_controller_tick(ent *e)
 		case 200:
 			// Boss fight
 			lv01_new_mainboss();
-			VPAL0[0] = 15;
+			blend_bg_pal(256, 32, 32);
 			fs_get_must("mus02   ", (void **)&mod, NULL);
 			f3m_player_init(&player, mod);
 			e->base.ctr[0] = 600;
@@ -625,6 +646,8 @@ ent *lv01_new_controller(void)
 {
 	ent *e = ent_new(NULL, F12N(240/2), F12N(160+32/2), ENT_GFX, -1, -1, 0);
 	e->base.f_tick = lv01_controller_tick;
+	e->base.vx = 0;
+	e->base.vy = 0x1000;
 
 	return e;
 }

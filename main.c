@@ -36,6 +36,8 @@ volatile int mod_bump = 0;
 volatile int keypad = 0;
 volatile int okeypad = 0;
 
+uint16_t bgpal[4];
+
 int32_t mbuf[F3M_BUFLEN*F3M_CHNS];
 uint8_t obuf[3][F3M_BUFLEN*F3M_CHNS];
 player_s player;
@@ -85,6 +87,29 @@ void score_inc(uint32_t sinc)
 		score[i] = dig;
 	}
 
+}
+
+void blend_bg_pal(int r, int g, int b)
+{
+	int i;
+
+	for(i = 0; i < 4; i++)
+	{
+		int sc = bgpal[i];
+		int sr = (sc>>0)&31;
+		int sg = (sc>>5)&31;
+		int sb = (sc>>10)&31;
+
+		sr *= r;
+		sg *= g;
+		sb *= b;
+
+		sr >>= 8;
+		sg >>= 8;
+		sb >>= 8;
+
+		VPAL0[32+i] = sr|(sg<<5)|(sb<<10);
+	}
 }
 
 #include "ent.c"
@@ -321,8 +346,9 @@ void _start(void)
 
 	//VPAL0[1] = 0;
 
-	DISPCNT = 0x1100;
-	BG0CNT = (1<<7) | (31<<8); // BG0 == HUD - tmap @ 0xF800 (0x7C00 word address)
+	DISPCNT = 0x1300;
+	BG0CNT = 1 | (1<<7) | (31<<8); // BG0 == HUD  - tmap @ 0xF800 (0x7C00 word address)
+	BG1CNT = 3 | (1<<7) | (30<<8); // BG1 == land - tmap @ 0xF000 (0x7800 word address)
 
 	// Load images
 	void *ptr_spr01;
@@ -331,6 +357,8 @@ void _start(void)
 	fs_get_must("glv01   ", (void **)&ptr_glv01, NULL);
 	tga_load(ptr_spr01, VRAM0D + ((0x10000)>>1), VPAL1, 128, 256);
 	tga_load(ptr_glv01, VRAM0D + ((0x00000)>>1), VPAL0, 128, 256);
+	for(i = 0; i < 4; i++)
+		bgpal[i] = VPAL0[32+i];
 	//VPAL0[0] = 0x421*((31+3/2)/3);
 
 	// Reset all entities
