@@ -14,7 +14,7 @@
 #define F3M_CHNS 1
 #endif
 #ifndef F3M_VCHNS
-#define F3M_VCHNS 20
+#define F3M_VCHNS 24
 #endif
 #define F3M_PRIO_NORMAL 50
 #define F3M_PRIO_MUSIC_OFF 100

@@ -3,7 +3,7 @@
 //define F3M_FREQ 16384
 //define F3M_BUFLEN 273
 #define F3M_CHNS 1
-#define F3M_VCHNS 20
+#define F3M_VCHNS 24
 
 #ifdef SLOWMEM_SOURCE_FILE
 #define slowmem_extern __attribute__((section(".slowmem")))
@@ -67,7 +67,9 @@ union ent
 
 	struct {
 		entbase_s base;
+		uint8_t grazed;
 		int16_t radius;
+		fed12 ax, ay;
 	} bullet;
 };
 

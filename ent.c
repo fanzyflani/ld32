@@ -90,6 +90,51 @@ void ent_free(ent *e)
 		entlist_used_end--;
 }
 
+void f_tick_explode(ent *e)
+{
+	if(--e->base.ctr[0] <= 0)
+	{
+		e->base.ctr[0] = 4;
+		e->base.oamdata[2] += 2;
+		if(e->base.oamdata[2] > (0x08<<1))
+		{
+			ent_free(e);
+			if(e == e_player)
+			{
+				if(lives < 0)
+				{
+					// RESET
+					// TODO: actually wait before we reset
+					IME = 0;
+					((void (*)(void))0x08000000)();
+					return;
+				}
+
+				e_player = ent_new_player();
+			}
+		}
+	}
+}
+
+void ent_kill(ent *e)
+{
+	if(e->base.typ == ENT_NONE)
+	{
+		VPAL0[0] = 0xFFF;
+		for(;;) {}
+	}
+
+	e->base.typ = ENT_GFX;
+	e->base.f_tick = f_tick_explode;
+	e->base.oamidx &= ~0x8000;
+	e->base.f_hit = NULL;
+	e->base.oamdata[0] = 0;
+	e->base.oamdata[1] = 0;
+	e->base.oamdata[2] = 0x04<<1;
+	e->base.ctr[0] = 3;
+}
+
+
 int ent_off_screen(ent *e, int lenience, int *rsx, int *rsy)
 {
 	// Convert position
@@ -192,6 +237,10 @@ void f_tick_bullet_glide(ent *e)
 		{
 			ent_free(e);
 			return;
+		} else if((!e->bullet.grazed) && ent_try_hit_one(e, e_player, e->bullet.radius + 9, 0)) {
+			e->bullet.grazed = 1;
+			score_inc(0x1);
+			f3m_sfx_play(&player, CHN_GRAZE, F3M_PRIO_NORMAL, s_graze, s_graze_len, 0, 32768, 128);
 		}
 	} else if(e->base.typ == ENT_PBULLET) {
 		if(ent_try_hit_enemy(e, e->bullet.radius, 1))
@@ -215,6 +264,55 @@ ent *ent_new_bullet_glide(ent *parent, int typ, fed12 x, fed12 y, fed12 vx, fed1
 	e->base.vy = vy;
 	e->base.f_tick = f_tick_bullet_glide;
 	e->bullet.radius = radius;
+	e->bullet.grazed = 0;
+
+	return e;
+}
+
+//
+// BULLET: accel
+//
+void f_tick_bullet_accel(ent *e)
+{
+	e->base.x += e->base.vx;
+	e->base.y += e->base.vy;
+
+	if(e->base.typ == ENT_EBULLET)
+	{
+		if(ent_try_hit_one(e, e_player, e->bullet.radius, 1))
+		{
+			ent_free(e);
+			return;
+		} else if((!e->bullet.grazed) && ent_try_hit_one(e, e_player, e->bullet.radius + 9, 0)) {
+			e->bullet.grazed = 1;
+			score_inc(0x1);
+			f3m_sfx_play(&player, CHN_GRAZE, F3M_PRIO_NORMAL, s_graze, s_graze_len, 0, 32768, 128);
+		}
+	} else if(e->base.typ == ENT_PBULLET) {
+		if(ent_try_hit_enemy(e, e->bullet.radius, 1))
+		{
+			ent_free(e);
+			return;
+		}
+	}
+
+	if(ent_off_screen(e, e->bullet.radius, NULL, NULL))
+	{
+		ent_free(e);
+		return;
+	}
+}
+
+ent *ent_new_bullet_accel(ent *parent, int typ, fed12 x, fed12 y, fed12 vx, fed12 vy, fed12 ax, fed12 ay, int tilex, int tiley, int sz, int radius)
+{
+	ent *e = ent_new(parent, x, y, typ, tilex, tiley, sz);
+	e->base.vx = vx;
+	e->base.vy = vy;
+	e->bullet.ax = ax;
+	e->bullet.ay = ay;
+	e->base.f_tick = f_tick_bullet_glide;
+	e->bullet.radius = radius;
+	e->bullet.grazed = 0;
 
 	return e;
 }
@@ -237,7 +335,11 @@ void f_enemy_hit(ent *e, ent *other, int dmg)
 		if(e->enemy.health <= 0)
 		{
 			// TODO: kill properly
-			ent_free(e);
+			score_inc(0x10);
+			f3m_sfx_play(&player, CHN_EDEAD, F3M_PRIO_NORMAL, s_edead, s_edead_len, 0, 32768, 64);
+			ent_kill(e);
+		} else {
+			f3m_sfx_play(&player, CHN_EHITX, F3M_PRIO_NORMAL, s_ehit1, s_ehit1_len, 0, 32768, 128);
 		}
 	}
 }
@@ -257,24 +359,18 @@ void f_hit_player(ent *e, ent *other, int dmg)
 
 		case ENT_EBULLET:
 		case ENT_ENEMY:
+			// Return if no damage
+			if(dmg <= 0)
+				return;
+
 			// Return if we have immunity
 			if(e->base.ctr[1] > 0)
 				return;
 
 			// Kill player
-			// TODO: do this properly
-			// (right now we're just doing a soft reset)
-			ent_free(e);
+			ent_kill(e);
+			f3m_sfx_play(&player, CHN_PDEAD, F3M_PRIO_NORMAL, s_pdead, s_pdead_len, 0, 32768, 128);
 			lives--;
-			if(lives < 0)
-			{
-				// RESET
-				IME = 0;
-				((void (*)(void))0x08000000)();
-				return;
-			}
-
-			e_player = ent_new_player();
 			break;
 	}
 }
@@ -293,12 +389,15 @@ void f_tick_player(ent *e)
 	for(i = 0; i < SCORE_DIGITS; i++)
 		VRAM0D[0x7C00 + 32*1 + 3 + i] = 0x30 + score[i];
 
+	// we don't have bombs in this engine. save some HUD space.
+	/*
 	VRAM0D[0x7C00 + 32*3 + 0] = 0x11;
 	VRAM0D[0x7C00 + 32*3 + 1] = 0x12;
 	VRAM0D[0x7C00 + 32*3 + 2] = 0x13;
 	for(i = 0; i < bombs; i++)
 		VRAM0D[0x7C00 + 32*3 + 3 + i] = 0x10;
 	VRAM0D[0x7C00 + 32*2 + 3 + bombs] = 0x00;
+	*/
 
 	VRAM0D[0x7C00 + 32*2 + 0] = 0x21;
 	VRAM0D[0x7C00 + 32*2 + 1] = 0x22;
@@ -349,6 +448,8 @@ void f_tick_player(ent *e)
 			int vy = sintab[(i*spread - 0x40)&255] + e->base.vy;
 			ent_new_bullet_glide(e, ENT_PBULLET, e->base.x, e->base.y, vx, vy, 1, 1, 0, 4);
 		}
+
+		f3m_sfx_play(&player, CHN_PSHOT, F3M_PRIO_NORMAL, s_pshot, s_pshot_len, 0, 32768, 64);
 	}
 }
 

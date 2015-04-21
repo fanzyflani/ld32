@@ -697,40 +697,46 @@ void f3m_player_play_newtick(player_s *player)
 	}
 }
 
-void f3m_sfx_play(player_s *player, int priority, const uint8_t *data, int len, int len_loop, int freq, int vol)
+void f3m_sfx_play(player_s *player, int chn, int priority, const uint8_t *data, int len, int len_loop, int freq, int vol)
 {
 	int i;
 	vchn_s *vchn;
 	int got_vchn = 0;
 
-	// Scan for free channels
-	for(i = 0; i < F3M_VCHNS; i++)
+	if(chn != -1)
 	{
-		vchn = &player->vchn[player->sfxoffs];
-		player->sfxoffs++;
-		if(player->sfxoffs >= F3M_VCHNS)
-			player->sfxoffs = 0;
-
-		if(vchn->priority == 0)
+		// Scan for free channels
+		for(i = 0; i < F3M_VCHNS; i++)
 		{
-			got_vchn = 1;
-			break;
+			vchn = &player->vchn[player->sfxoffs];
+			player->sfxoffs++;
+			if(player->sfxoffs >= F3M_VCHNS)
+				player->sfxoffs = 0;
+
+			if(vchn->priority == 0)
+			{
+				got_vchn = 1;
+				break;
+			}
 		}
-	}
 
-	// Scan for channels we can override
-	if(!got_vchn) for(i = 0; i < F3M_VCHNS; i++)
-	{
-		vchn = &player->vchn[player->sfxoffs];
-		player->sfxoffs++;
-		if(player->sfxoffs >= F3M_VCHNS)
-			player->sfxoffs = 0;
-
-		if(vchn->priority <= priority)
+		// Scan for channels we can override
+		if(!got_vchn) for(i = 0; i < F3M_VCHNS; i++)
 		{
-			got_vchn = 1;
-			break;
+			vchn = &player->vchn[player->sfxoffs];
+			player->sfxoffs++;
+			if(player->sfxoffs >= F3M_VCHNS)
+				player->sfxoffs = 0;
+
+			if(vchn->priority <= priority)
+			{
+				got_vchn = 1;
+				break;
+			}
 		}
+	} else {
+		vchn = &player->vchn[chn];
+		got_vchn = 1;
 	}
 
 	if(!got_vchn) return;

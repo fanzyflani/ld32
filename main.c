@@ -43,6 +43,21 @@ player_s player;
 int oam_soffs = 0;
 int oam_doffs = 0;
 
+uint8_t *s_graze; uint32_t s_graze_len;
+uint8_t *s_pshot; uint32_t s_pshot_len;
+uint8_t *s_eshot; uint32_t s_eshot_len;
+uint8_t *s_edead; uint32_t s_edead_len;
+uint8_t *s_pdead; uint32_t s_pdead_len;
+uint8_t *s_bdead; uint32_t s_bdead_len;
+uint8_t *s_ehit1; uint32_t s_ehit1_len;
+uint8_t *s_ehit2; uint32_t s_ehit2_len;
+#define CHN_GRAZE 16
+#define CHN_PSHOT 17
+#define CHN_ESHOT 18
+#define CHN_EDEAD 19
+#define CHN_PDEAD 20
+#define CHN_EHITX 21
+
 // 0 = easy
 // 1 = normal
 // 2 = hard
@@ -50,6 +65,27 @@ int difficulty = 1;
 
 #define DIFF(a,b,c) \
 	(difficulty == 0 ? (a) : difficulty == 1 ? (b) : (c))
+
+// takes a BCD score
+// we skip the first digit
+void score_inc(uint32_t sinc)
+{
+	int i;
+	for(i = SCORE_DIGITS-2; i >= 0 && sinc != 0; i--)
+	{
+		int dig = sinc & 0xF;
+		sinc >>= 4;
+		dig += score[i];
+		if(dig > 9)
+		{
+			sinc += 0x1;
+			dig -= 10;
+		}
+
+		score[i] = dig;
+	}
+
+}
 
 #include "ent.c"
 #include "lv01.c"
@@ -314,6 +350,14 @@ void _start(void)
 	lv01_new_controller();
 
 	// Set up audio
+	fs_get_must("s_graze ", (void **)&s_graze, &s_graze_len);
+	fs_get_must("s_pshot ", (void **)&s_pshot, &s_pshot_len);
+	fs_get_must("s_eshot ", (void **)&s_eshot, &s_eshot_len);
+	fs_get_must("s_edead ", (void **)&s_edead, &s_edead_len);
+	fs_get_must("s_pdead ", (void **)&s_pdead, &s_pdead_len);
+	fs_get_must("s_bdead ", (void **)&s_bdead, &s_bdead_len);
+	fs_get_must("s_ehit1 ", (void **)&s_ehit1, &s_ehit1_len);
+	fs_get_must("s_ehit2 ", (void **)&s_ehit2, &s_ehit2_len);
 	mod_s *mod;
 	fs_get_must("mus01   ", (void **)&mod, NULL);
 

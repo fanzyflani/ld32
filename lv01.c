@@ -2,7 +2,7 @@ void lv01_enemy01_tick(ent *e)
 {
 	int i;
 
-	if(e->base.ctr[0] < 90)
+	if(e->base.ctr[0] < 70)
 	{
 		e->base.x += (F12N(e->enemy.tx) - e->base.x)>>4;
 		e->base.y += (F12N(e->enemy.ty) - e->base.y)>>4;
@@ -44,8 +44,10 @@ void lv01_enemy01_tick(ent *e)
 			vy *= 2;
 
 			ent_new_bullet_glide(e, ENT_EBULLET, e->base.x, e->base.y, vx, vy, 2, 1, 0, 4);
+			f3m_sfx_play(&player, CHN_ESHOT, F3M_PRIO_NORMAL, s_eshot, s_eshot_len, 0, 32768, 64);
 
 		}
+
 	}
 }
 
@@ -82,6 +84,7 @@ void lv01_enemy02_tick(ent *e)
 		svx = (spd*svx)>>12;
 		svy = (spd*svy)>>12;
 		ent_new_bullet_glide(e, ENT_EBULLET, e->base.x, e->base.y, svx, svy, 0, 1, 0, 4);
+		f3m_sfx_play(&player, CHN_ESHOT, F3M_PRIO_NORMAL, s_eshot, s_eshot_len, 0, 32768, 64);
 	}
 
 	// Advance
@@ -162,6 +165,44 @@ void lv01_mainboss_tick(ent *e)
 			e->base.x = F12N(120) + ((sintab[(e->base.vx>>4)&0xFF]*15)>>(14-12));
 			e->base.vx += 0x1000/180;
 			break;
+
+		case 9:
+			// prep attack 2.0; inc health
+			e->base.x += (F12N(e->enemy.tx) - e->base.x)>>4;
+			e->base.y += (F12N(e->enemy.ty) - e->base.y)>>4;
+			e->base.ctr[2] += 2;
+			break;
+
+		case 10:
+			// finish prep attack 2.0
+			e->base.x += (F12N(e->enemy.tx) - e->base.x)>>4;
+			e->base.y += (F12N(e->enemy.ty) - e->base.y)>>4;
+			break;
+
+
+		case 11:
+			// attack 2.0
+			e->base.x += (F12N(e->enemy.tx) - e->base.x)>>4;
+			e->base.y += (F12N(e->enemy.ty) - e->base.y)>>4;
+			if(e->base.ctr[0] % DIFF(30, 20, 10) == 0)
+			{
+				for(i = 0; i < 256; i += DIFF((256+5)/6, (256+7)/8, (256+11)/12))
+				{
+					int spd = DIFF(0x100, 0x140, 0x140);
+					int ang = i + e->base.ctr[2]*10 + e->base.ctr[0];
+					int vx = (sintab[(ang+0x00)&255]*spd)>>(14-12+8);
+					int vy = (sintab[(ang-0x40)&255]*spd)>>(14-12+8);
+					ent_new_bullet_glide(e, ENT_EBULLET, e->base.x, e->base.y, vx, vy, e->base.vy, 1, 0, 4);
+				}
+
+				e->base.vy++;
+				if(e->base.vy == 1) e->base.vy = 2;
+				if(e->base.vy == 4) e->base.vy = 0;
+
+				f3m_sfx_play(&player, CHN_ESHOT, F3M_PRIO_NORMAL, s_eshot, s_eshot_len, 0, 32768, 64);
+
+			}
+			break;
 	}
 
 	// Set BG0 HUD
@@ -189,7 +230,7 @@ void lv01_mainboss_tick(ent *e)
 			e->enemy.tx = 120;
 			e->enemy.ty = 40;
 			e->base.ctr[0] = 50;
-			//e->base.ctr[1] = 4; // SKIP
+			//e->base.ctr[1] = 8; // SKIP
 			break;
 
 		case 1:
@@ -220,6 +261,7 @@ void lv01_mainboss_tick(ent *e)
 				int vy = (sintab[(ang-0x40)&255]*spd)>>(14-12+8);
 				ent_new_bullet_glide(e, ENT_EBULLET, e->base.x, e->base.y, vx, vy, j, 1, 0, 4);
 			}
+			f3m_sfx_play(&player, CHN_ESHOT, F3M_PRIO_NORMAL, s_eshot, s_eshot_len, 0, 32768, 128);
 
 			e->base.ctr[2]++;
 			if(e->base.ctr[2] % DIFF(4, 6, 8) == 0)
@@ -298,6 +340,10 @@ void lv01_mainboss_tick(ent *e)
 					fed12 nvy = (avx*vs + avy*vc)>>12;
 					ent_new_bullet_glide(e, ENT_EBULLET, e->base.x, e->base.y, nvx, nvy, 1, 1, 0, 4);
 				}
+				f3m_sfx_play(&player, CHN_ESHOT, F3M_PRIO_NORMAL, s_eshot, s_eshot_len, 0, 32768, 192);
+			} else {
+				f3m_sfx_play(&player, CHN_ESHOT, F3M_PRIO_NORMAL, s_eshot, s_eshot_len, 0, 32768, 96);
+
 			}
 
 			e->base.ctr[2]++;
@@ -307,10 +353,57 @@ void lv01_mainboss_tick(ent *e)
 			break;
 
 		case 8:
-			// TODOland
+			// death after attack 1.0
+			// health change
 			VPAL0[0] = 15;
-			e->base.ctr[0] = 60;
+			e->enemy.tx = 120;
+			e->enemy.ty = 40;
+			e->base.ctr[0] = 50;
+			e->enemy.health = -1;
+			e->enemy.maxhealth = 100;
 			e->base.ctr[2] = 0;
+			break;
+
+		case 9:
+			// end regen for 2.0 health
+			e->base.ctr[0] = 120;
+			break;
+
+		case 10:
+			// prep for attack 2.0
+			e->enemy.health = e->enemy.maxhealth;
+			e->enemy.goto_death = 200;
+			e->base.ctr[2] = 0;
+			e->base.ctr[1]++;
+			e->base.vx = 0;
+			e->base.vy = 0;
+
+			// * FALL THROUGH *
+		case 11:
+			// attack 2.0
+			e->base.ctr[0] = 60;
+			e->base.ctr[2]++;
+
+			e->enemy.tx = 120 + ((40*sintab[(e->base.vx*(256*2/5) + 0x00)&255])>>14);
+			e->enemy.ty =  55 + ((15*sintab[(e->base.vx*(256*2/5) - 0x40)&255])>>14);
+
+			e->base.vx++;
+			if(e->base.vx >= 5)
+				e->base.vx = 0;
+			e->base.ctr[1]--;
+			break;
+
+		case 200:
+			// boss dead
+			f3m_sfx_play(&player, CHN_EDEAD, F3M_PRIO_NORMAL, s_bdead, s_bdead_len, 0, 32768, 127);
+			f3m_sfx_play(&player, CHN_ESHOT, F3M_PRIO_NORMAL, s_bdead, s_bdead_len, 0, 32768, 127);
+			f3m_sfx_play(&player, CHN_EHITX, F3M_PRIO_NORMAL, s_bdead, s_bdead_len, 0, 32768, 127);
+			ent_kill(e);
+			VPAL0[0] = 0x421*15;
+			break;
+
+		case 201:
+			e->base.ctr[0] = 240;
 			e->base.ctr[1]--;
 			break;
 	}
@@ -341,6 +434,17 @@ void lv01_mainboss_hit(ent *e, ent *other, int dmg)
 
 		e->base.ctr[2] = 0;
 		e->base.ctr[1] = e->enemy.goto_death;
+		e->base.ctr[0] = 0;
+		f3m_sfx_play(&player, CHN_EDEAD, F3M_PRIO_NORMAL, s_edead, s_edead_len, 0, 32768/2, 127);
+		f3m_sfx_play(&player, CHN_ESHOT, F3M_PRIO_NORMAL, s_edead, s_edead_len, 0, 32768/2, 127);
+		f3m_sfx_play(&player, CHN_EHITX, F3M_PRIO_NORMAL, s_edead, s_edead_len, 0, 32768/2, 127);
+		score_inc(0x1000);
+	} else if(e->enemy.health < 25) {
+		score_inc(0x1);
+		f3m_sfx_play(&player, CHN_EHITX, F3M_PRIO_NORMAL, s_ehit2, s_ehit2_len, 0, 32768, 128);
+	} else {
+		score_inc(0x1);
+		f3m_sfx_play(&player, CHN_EHITX, F3M_PRIO_NORMAL, s_ehit1, s_ehit1_len, 0, 32768, 128);
 	}
 }
 
@@ -380,7 +484,7 @@ void lv01_controller_tick(ent *e)
 			// Warm background up
 			e->base.ctr[2]++;
 			VPAL0[0] = ((e->base.ctr[2]*((31+3/2)/3))>>6)*0x421;
-			//e->base.ctr[1] = 11; // SKIP
+			//e->base.ctr[1] = 200; // SKIP
 			if(e->base.ctr[2] < 64)
 				e->base.ctr[1] = 1;
 			break;
@@ -452,12 +556,50 @@ void lv01_controller_tick(ent *e)
 
 		case 10:
 			// Wave 1.3
-			e->base.ctr[0] = 125+95;
+			e->base.ctr[0] = 126+96+96;
 			for(i = 0; i < 0x40; i += DIFF(0x40/5, 0x40/7, 0x40/10))
 				lv01_new_enemy02(120, -180, -F12N(0x60 - i), -F12N(0xC0), 220);
 			break;
 
 		case 11:
+			// Wave 2.0 prep
+
+			e->base.ctr[2] = 0;
+			e->base.ctr[1]++;
+
+			// *** FALL THROUGH ***
+
+		case 12:
+			e->base.ctr[0] = 24;
+
+			//if((e->base.ctr[2] & DIFF(3, 1, 0)) == 0)
+			{
+				lv01_new_enemy01(
+					240/2 + (e->base.ctr[2]-4)*(80/4),
+					70, 
+					F12N(((e->base.ctr[2]&7) >= 4)?-1:1), F12N(1)>>1);
+			}
+
+			e->base.ctr[2]++;
+			if(e->base.ctr[2] < 8+1)
+			{
+				e->base.ctr[1]--;
+				break;
+			} else {
+				e->base.ctr[1]++;
+
+				// *** FALL THROUGH ***
+			}
+
+		case 13:
+			e->base.ctr[0] = 96*4;
+			break;
+
+		case 14:
+			e->base.ctr[1] = 200+1;
+
+			// *** FALL THROUGH ***
+		case 200:
 			// Boss fight
 			lv01_new_mainboss();
 			VPAL0[0] = 15;
@@ -466,7 +608,7 @@ void lv01_controller_tick(ent *e)
 			e->base.ctr[0] = 600;
 			break;
 
-		case 12:
+		case 201:
 			// TODOland
 			e->base.ctr[0] = 600;
 			e->base.ctr[1]--;
